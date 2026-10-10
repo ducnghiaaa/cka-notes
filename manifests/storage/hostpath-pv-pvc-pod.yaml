@@ -1,0 +1,64 @@
+# PV hostPath + PVC + pod. Lab only: hostPath gắn pod với đĩa của một node.
+# Kiểm chứng persistence:
+#   k apply -f hostpath-pv-pvc-pod.yaml
+#   k exec data-writer -- sh -c 'echo hello > /data/test.txt'
+#   k delete pod data-writer --force --grace-period=0
+#   k apply -f hostpath-pv-pvc-pod.yaml   # pod mới, cùng node nhờ nodeAffinity của PV
+#   k exec data-writer -- cat /data/test.txt   # → hello
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual            # phải giống PVC
+  hostPath:
+    path: /mnt/data
+    type: DirectoryOrCreate
+  nodeAffinity:                       # buộc pod dùng PV này về đúng node có dữ liệu
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [w1]            # đổi theo tên node của bạn
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+  namespace: default
+spec:
+  storageClassName: manual
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 500Mi                  # ≤ capacity của PV
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: data-writer
+  namespace: default
+spec:
+  securityContext:
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits: { cpu: 100m, memory: 64Mi }
+      securityContext:
+        allowPrivilegeEscalation: false
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: data-pvc

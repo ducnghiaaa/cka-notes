@@ -1,0 +1,157 @@
+# CKA cheatsheet
+
+Cập nhật lần cuối: Ngày 1 (09/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
+
+## 0. Đầu giờ thi / đầu buổi lab
+
+```bash
+alias k=kubectl                                   # đề đã có sẵn alias k + completion
+source <(kubectl completion bash); complete -o default -F __start_kubectl k
+export do="--dry-run=client -o yaml"              # k run web --image=nginx $do > pod.yaml
+export now="--force --grace-period=0"             # k delete pod web $now
+# ~/.vimrc
+set expandtab tabstop=2 shiftwidth=2 autoindent number
+```
+
+- **Mỗi task: chạy lệnh `ssh <host>` / `k config use-context` trong infobox trước tiên.**
+- Xong task: verify, rồi `exit` về host `base`.
+
+## 1. Troubleshooting (30%)
+
+### Thứ tự nhìn (Ngày 1)
+
+```bash
+k get nodes -o wide
+k get pods -A -o wide | grep -v Running
+k get events -A --sort-by=.lastTimestamp | tail -20
+k describe <kind> <name>                       # đọc Events cuối output
+k logs <pod> [-c <container>] [-p]             # -p = lần chạy trước (pod đã crash)
+```
+
+### Node NotReady (Ngày 1)
+
+```bash
+ssh <node>
+sudo systemctl status kubelet containerd
+sudo journalctl -u kubelet -n 50 --no-pager
+# config kubelet: /var/lib/kubelet/config.yaml · kubeconfig kubelet: /etc/kubernetes/kubelet.conf
+sudo systemctl daemon-reload && sudo systemctl restart kubelet
+```
+
+## 2. Cluster Architecture (25%)
+
+### Upgrade kubeadm, một minor mỗi lần (Ngày 1)
+
+```bash
+# --- Control plane ---
+sudo sed -i 's/v1\.34/v1.35/' /etc/apt/sources.list.d/kubernetes.list   # đổi repo minor
+sudo apt-get update && apt-cache madison kubeadm | head -3                # xem bản 1.35.x-*
+sudo apt-mark unhold kubeadm && sudo apt-get install -y kubeadm='1.35.<x>-*' && sudo apt-mark hold kubeadm
+sudo kubeadm upgrade plan
+sudo kubeadm upgrade apply v1.35.<x>
+k drain <cp> --ignore-daemonsets
+sudo apt-mark unhold kubelet kubectl && sudo apt-get install -y kubelet='1.35.<x>-*' kubectl='1.35.<x>-*' && sudo apt-mark hold kubelet kubectl
+sudo systemctl daemon-reload && sudo systemctl restart kubelet
+k uncordon <cp>
+
+# --- Worker (drain từ control plane, phần còn lại trên worker) ---
+k drain <worker> --ignore-daemonsets
+ssh <worker>   # đổi repo + cài kubeadm như trên, rồi:
+sudo kubeadm upgrade node
+#   cài kubelet + kubectl, daemon-reload, restart kubelet, exit
+k uncordon <worker>
+```
+
+### Cordon / drain (Ngày 1)
+
+| Lệnh | Tác dụng |
+| --- | --- |
+| `k cordon <node>` | Đánh dấu unschedulable, pod đang chạy giữ nguyên |
+| `k drain <node> --ignore-daemonsets` | Cordon + evict pod (bỏ qua pod DaemonSet) |
+| `--delete-emptydir-data` | Cho phép xoá pod có emptyDir |
+| `--force` | Cho phép xoá pod không có controller |
+| `k uncordon <node>` | Cho phép schedule lại |
+
+## 3. Services & Networking (20%)
+
+### Service không thông (Ngày 1)
+
+```bash
+k get svc <svc> -o wide
+k get endpointslice -l kubernetes.io/service-name=<svc>      # rỗng → selector sai
+k get pod --show-labels
+k get pod <pod> -o jsonpath='{.spec.containers[*].ports[*].containerPort}'
+k patch svc <svc> -p '{"spec":{"ports":[{"port":80,"targetPort":8080}]}}'
+k run tmp --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 2 http://<svc>.<ns>:80
+```
+
+### Ingress nhanh (Ngày 1)
+
+```bash
+k create ingress web --class=<ingressclass> \
+  --rule="app.example.com/api*=api-svc:80" \
+  --rule="app.example.com/*=web-svc:80" $do > ing.yaml      # dấu * = pathType Prefix
+k get ingressclass
+```
+
+## 4. Workloads & Scheduling (15%)
+
+### Taint / toleration (Ngày 1)
+
+```bash
+k taint nodes <node> env=prod:NoSchedule        # thêm
+k taint nodes <node> env=prod:NoSchedule-       # xoá (dấu - ở cuối)
+k describe node <node> | grep -i taint
+```
+
+```yaml
+tolerations:
+  - key: env
+    operator: Equal
+    value: prod
+    effect: NoSchedule
+```
+
+### Node affinity (Ngày 1)
+
+```yaml
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:     # bắt buộc
+      nodeSelectorTerms:
+        - matchExpressions:
+            - { key: disktype, operator: In, values: [ssd] }
+    preferredDuringSchedulingIgnoredDuringExecution:    # ưu tiên
+      - weight: 50
+        preference:
+          matchExpressions:
+            - { key: zone, operator: In, values: [a] }
+```
+
+`k label node <node> disktype=ssd` · docs: tìm "Assign Pods to Nodes using Node Affinity".
+
+## 5. Storage (10%)
+
+### PVC Pending — checklist (Ngày 1)
+
+1. `k describe pvc <pvc>` → Events.
+2. `k get pv,pvc,sc` → so **storageClassName**, **accessModes**, **capacity**.
+3. SC `WaitForFirstConsumer` → Pending tới khi có pod: bình thường.
+4. PV `Released` → `k patch pv <pv> --type=json -p '[{"op":"remove","path":"/spec/claimRef"}]'`.
+
+### PV + PVC + pod
+
+Mẫu: `manifests/storage/hostpath-pv-pvc-pod.yaml`. Docs: tìm "Configure a Pod to Use a PersistentVolume for Storage".
+hostPath chỉ ở một node → kiểm tra persistence phải cùng node.
+
+| Access mode | Viết tắt | Ý nghĩa |
+| --- | --- | --- |
+| ReadWriteOnce | RWO | Ghi được từ một **node** |
+| ReadOnlyMany | ROX | Đọc từ nhiều node |
+| ReadWriteMany | RWX | Ghi từ nhiều node |
+| ReadWriteOncePod | RWOP | Ghi từ đúng một **pod** |
+
+| Reclaim policy | Khi xoá PVC |
+| --- | --- |
+| Retain | PV thành `Released`, dữ liệu giữ nguyên, phải dọn tay |
+| Delete | Xoá PV và volume phía sau (mặc định của SC động) |

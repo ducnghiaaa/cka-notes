@@ -1,0 +1,28 @@
+name: security
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Pin each action to a full commit SHA after the first run (Dependabot keeps them updated).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets (TruffleHog)
+        uses: trufflesecurity/trufflehog@v3.88.0
+        with:
+          extra_args: --results=verified,unknown
+      - name: IaC (Trivy config)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: lab/terraform
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          trivyignores: lab/terraform/.trivyignore

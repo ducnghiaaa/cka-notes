@@ -1,0 +1,24 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+# Secrets / cluster credentials
+*.pem
+*.key
+*.crt
+*.csr
+id_*
+kubeconfig
+*.kubeconfig
+admin.conf
+.env
+.secrets/
+# etcd snapshots
+*.db
+# OS / editor
+.DS_Store
+*.swp

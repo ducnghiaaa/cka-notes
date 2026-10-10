@@ -1,0 +1,4 @@
+# Accepted for a short-lived lab: nodes need public IPs for SSH and open egress to pull images.
+# Re-run `trivy config .` and replace these with the exact IDs it reports (AWS-0104 egress, AWS-0164 public IP).
+AVD-AWS-0104
+AVD-AWS-0164
