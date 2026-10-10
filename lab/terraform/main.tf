@@ -151,10 +151,21 @@ resource "aws_instance" "node" {
 }
 
 output "ssh_config" {
-  value = join("\n", [for k, n in aws_instance.node :
-  "Host ${k}\n  HostName ${n.public_ip}\n  User ubuntu\n  IdentityFile ~/.ssh/cka"])
+  description = "Ghi vào ~/.ssh/config.d/cka-lab: terraform output -raw ssh_config > ~/.ssh/config.d/cka-lab"
+  value = join("", [for k, n in aws_instance.node : <<-EOT
+    Host ${k}
+      HostName ${n.public_ip}
+      User ubuntu
+      IdentityFile ~/.ssh/cka
+      IdentitiesOnly yes
+      HostKeyAlias cka-${k}
+      StrictHostKeyChecking accept-new
+
+    EOT
+  ])
 }
 
 output "private_ips" {
   value = { for k, n in aws_instance.node : k => n.private_ip }
 }
+

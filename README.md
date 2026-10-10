@@ -9,7 +9,7 @@ Ghi chú ôn thi CKA (Kubernetes v1.35), lộ trình 90 ngày: 09/10/2026 → th
 | `daily/_template.md` | Mẫu cho ngày mới |
 | `manifests/` | YAML mẫu đã chạy được, xếp theo domain |
 | `lab/terraform/` | Hạ tầng lab trên AWS (3 node Ubuntu 24.04) |
-| `lab/scripts/` | Script chuẩn bị node cho kubeadm |
+| `lab/scripts/` | `lab.sh` bật/tắt lab, `node-prep.sh` chuẩn bị node cho kubeadm |
 
 Theo dõi tiến độ (trạng thái, giờ học, điểm mock, mistake log) nằm ở file Excel `CKA_Lo_trinh_90_ngay.xlsx`, không nằm trong repo.
 
@@ -24,4 +24,5 @@ Theo dõi tiến độ (trạng thái, giờ học, điểm mock, mistake log) n
 
 - Không commit: `*.tfstate`, `*.tfvars`, kubeconfig, private key, cert, file etcd snapshot (`.gitignore` đã chặn; pre-commit chạy gitleaks).
 - Không chép đề thi thật hay lời giải Killer.sh vào repo. Đề CKA nằm dưới thoả thuận bảo mật của Linux Foundation; chỉ ghi lại khái niệm và lỗi của chính mình.
-- Nên để repo **private**.
+- Repo đang **public**: không ghi public IP của bạn, AWS Account ID, output `ssh_config` vào note. IP private `10.42.x.x` thì không sao.
+- Đã bật Secret scanning + Push protection trong Settings → Code security.

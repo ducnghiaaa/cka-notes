@@ -1,6 +1,6 @@
 # CKA cheatsheet
 
-Cập nhật lần cuối: Ngày 1 (09/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
+Cập nhật lần cuối: Ngày 2 (10/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
 
 ## 0. Đầu giờ thi / đầu buổi lab
 
@@ -14,7 +14,18 @@ set expandtab tabstop=2 shiftwidth=2 autoindent number
 ```
 
 - **Mỗi task: chạy lệnh `ssh <host>` / `k config use-context` trong infobox trước tiên.**
-- Xong task: verify, rồi `exit` về host `base`.
+- **Nhìn prompt** (`ubuntu@cp1`, `base`) trước khi gõ lệnh: đang đứng ở host nào? (Ngày 2)
+- Xong task: verify, rồi `exit` về host `base`. Không SSH lồng nhau.
+
+### SSH (Ngày 2)
+
+```bash
+ssh <host>                         # host đã khai báo trong ~/.ssh/config
+sudo -i                            # lên root trên host (đề cho phép)
+ssh-keygen -R <host>               # xoá host key cũ khi máy được tạo lại
+scp <host>:/path/file /tmp/        # chép về máy đang đứng
+ssh -v <host>                      # debug "Permission denied": xem key nào được thử
+```
 
 ## 1. Troubleshooting (30%)
 
