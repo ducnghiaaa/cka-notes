@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 10
     steps:
       # Pin each action to a full commit SHA after the first run (Dependabot keeps them updated).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Secrets (TruffleHog)
