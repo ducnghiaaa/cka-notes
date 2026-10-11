@@ -3,6 +3,7 @@
 *.tfstate
 *.tfstate.*
 *.tfplan
+tf.plan
 *.tfvars
 !*.tfvars.example
 crash.log
@@ -16,6 +17,7 @@ kubeconfig
 *.kubeconfig
 admin.conf
 .env
+*.env
 .secrets/
 # etcd snapshots
 *.db

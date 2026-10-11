@@ -10,16 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      # Pin each action to a full commit SHA after the first run (Dependabot keeps them updated).
-      - uses: actions/checkout@v4
+      # Pinned to full commit SHAs: tags can be force-pushed (trivy-action, March 2026). Dependabot updates SHA + comment.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - name: Secrets (TruffleHog)
-        uses: trufflesecurity/trufflehog@v3.88.0
+        uses: trufflesecurity/trufflehog@b2b0a92070f206ab7b5a1105d82a7f2f48d92341 # v3.99.0
         with:
           extra_args: --results=verified,unknown
       - name: IaC (Trivy config)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: lab/terraform

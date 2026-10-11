@@ -1,6 +1,6 @@
 # CKA cheatsheet
 
-Cập nhật lần cuối: Ngày 2 (10/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
+Cập nhật lần cuối: Ngày 3 (11/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
 
 ## 0. Đầu giờ thi / đầu buổi lab
 
@@ -48,6 +48,83 @@ sudo journalctl -u kubelet -n 50 --no-pager
 # config kubelet: /var/lib/kubelet/config.yaml · kubeconfig kubelet: /etc/kubernetes/kubelet.conf
 sudo systemctl daemon-reload && sudo systemctl restart kubelet
 ```
+
+### systemd: service hỏng (Ngày 3)
+
+```bash
+systemctl status <svc> --no-pager          # Active? exit code? (status=203/EXEC = sai đường dẫn binary)
+systemctl cat <svc>                        # file gốc + MỌI drop-in — đừng chỉ đọc file .service
+journalctl -u <svc> -n 30 --no-pager       # nguyên nhân
+sudo systemctl daemon-reload               # BẮT BUỘC sau khi sửa file unit/drop-in bằng tay
+sudo systemctl restart <svc>
+systemctl is-active <svc>; systemctl is-enabled <svc>
+systemctl list-units --failed
+```
+
+Drop-in (cách kubelet nhận cờ qua `10-kubeadm.conf`):
+
+```ini
+# /etc/systemd/system/<svc>.service.d/override.conf
+[Service]
+ExecStart=
+ExecStart=/new/command --flag
+```
+
+`ExecStart=` trống để xoá lệnh cũ, thiếu nó systemd báo lỗi 2 ExecStart. `sudo SYSTEMD_EDITOR=vim systemctl edit <svc>` → gõ **giữa** hai dòng `###`, nếu không sẽ không lưu.
+
+### journalctl (Ngày 3)
+
+```bash
+journalctl -u kubelet -f                   # theo dõi trực tiếp
+journalctl -u kubelet --since "10 min ago" --no-pager
+journalctl -p err -b --no-pager | tail     # chỉ lỗi, từ lần boot này
+```
+
+### Control plane chết, kubectl không dùng được (Ngày 3)
+
+```bash
+ssh <controlplane> && sudo -i
+crictl ps -a | grep -E 'apiserver|etcd|scheduler|controller'   # container Exited?
+crictl logs <id> 2>&1 | tail
+ls /var/log/pods/ | grep apiserver                              # log cũng ở đây
+journalctl -u kubelet -n 30 --no-pager                          # YAML sai cú pháp → không có container, xem ở đây
+grep staticPodPath /var/lib/kubelet/config.yaml                 # thường /etc/kubernetes/manifests
+```
+
+- Sửa manifest static pod → kubelet tự tạo lại pod (không cần apply), đợi 30–60s.
+- **Backup để NGOÀI** `/etc/kubernetes/manifests` — file `.bak` trong đó cũng bị chạy.
+- Thiếu scheduler → pod mới `Pending`, pod cũ vẫn chạy.
+
+### Mạng trên node (Ngày 3)
+
+```bash
+ss -tlnp                                   # port đang lắng nghe + process
+ip -br a; ip route; ip route get <ip>
+nc -zv <ip> <port>                         # port mở? (refused = host sống, không có service)
+curl -sk https://<ip>:6443/healthz
+cat /etc/resolv.conf
+```
+
+| Component | Port |
+| --- | --- |
+| kube-apiserver | 6443 |
+| etcd | 2379 (client), 2380 (peer) |
+| kubelet | 10250 |
+| kube-controller-manager | 10257 |
+| kube-scheduler | 10259 |
+| NodePort | 30000–32767 |
+
+### Vim (Ngày 3)
+
+| Thao tác | Phím |
+| --- | --- |
+| Thụt khối dòng | `V` chọn → `>` / `<` |
+| Chèn đầu nhiều dòng | `Ctrl+v` chọn cột → `I` → gõ → `Esc` |
+| Copy / xoá / dán dòng | `yy` / `dd` / `p` |
+| Thay một từ | `ciw` |
+| Tìm / thay | `/text` · `:%s/old/new/g` |
+| Dán không lệch | `:set paste` |
+| Nhảy dòng N / đầu / cuối | `NG` / `gg` / `G` |
 
 ## 2. Cluster Architecture (25%)
 

@@ -10,7 +10,10 @@ ssh-keygen -t ed25519 -f ~/.ssh/cka -C cka-lab -N ""
 
 # 2. Biến Terraform: lưu vào lab/terraform/.env (đã gitignore), lab.sh tự đọc
 cat > .env <<'EOT'
-export TF_VAR_owner="<your-name>"
+export AWS_PROFILE="cka"
+export AWS_REGION="ap-southeast-1"
+export EXPECTED_AWS_ACCOUNT="<12 số account của lab>"   # lab.sh dừng nếu đang ở account khác
+export TF_VAR_owner="nghiand"
 export TF_VAR_ssh_pubkey="~/.ssh/cka.pub"
 EOT
 source .env
@@ -47,7 +50,32 @@ ssh cp1 hostname
 | Private IP, ổ đĩa, cluster | Giữ nguyên |
 | Chi phí khi stop | Không tính giờ máy, vẫn tính EBS ~$8–9/tháng |
 
-IP nhà bạn đổi → lab.sh báo drift → `terraform plan -out lab.tfplan && terraform apply lab.tfplan` để cập nhật security group.
+`lab.sh` chỉ đọc AWS (theo tag `Project=cka-lab`), **không ghi Terraform state**.
+
+### Khi IP nhà bạn đổi (lab.sh báo "chưa được mở SSH")
+
+```bash
+cd lab/terraform
+source .env
+export TF_VAR_admin_cidr="$(curl -s https://checkip.amazonaws.com)/32"
+terraform plan -out lab.tfplan     # đúng: 0 to add, 1 to change (aws_security_group.nodes), 0 to destroy
+terraform apply lab.tfplan
+```
+
+Terminal mới → phải `source .env` trước mọi lệnh `terraform`, nếu không Terraform sẽ hỏi giá trị biến (đừng Enter bỏ trống).
+
+### Nếu state bị mất (plan đòi tạo lại mọi thứ dù máy vẫn còn)
+
+Thường do chạy với sai `AWS_PROFILE`. Terraform giữ bản trước lần ghi gần nhất:
+
+```bash
+export AWS_PROFILE=cka && aws sts get-caller-identity
+terraform state list -state=terraform.tfstate.backup | grep aws_instance   # đủ 3 node?
+cp terraform.tfstate terraform.tfstate.broken && cp terraform.tfstate.backup terraform.tfstate
+terraform plan                                                              # No changes
+```
+
+Không bao giờ dùng `terraform apply -refresh-only -auto-approve` trong script.
 
 ## Đổi SSH key
 
