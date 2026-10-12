@@ -1,6 +1,6 @@
 # Ngày 4 — Kiến trúc cluster (12/10/2026)
 
-**Thời gian:** dự kiến 2h · thực tế _h  
+**Thời gian:** dự kiến 2h · thực tế 1h30  
 **Tự đánh giá:** _/5  
 **Kết quả:** làm đủ 7 phần trên Killercoda. Tự kiểm tra **5/8** câu (đúng 1, 2, 5, 8; đúng một nửa 3, 7; sai 4, 6).
 

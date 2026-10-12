@@ -16,7 +16,7 @@
 | Làm lại 2 lab Storage trên Killercoda: Persistent Volumes, Troubleshoot a Stuck PVC | Xong | Hai bài fail ở Ngày 1 |
 | Stop lab | Xong | `./lab/scripts/lab.sh stop` |
 
-IP private hiện tại: `cp1` = 10.42.1.70 · `w1` = … · `w2` = … (điền từ `terraform output private_ips`)
+IP private hiện tại: `cp1` = 10.42.1.70 · `w1` = 10.42.1.214 · `w2` = 10.42.1.159 (điền từ `terraform output private_ips`)
 
 ## Lỗi hôm nay
 
