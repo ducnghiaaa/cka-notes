@@ -1,69 +1,88 @@
-1. 
-Cluster Architecture
-Control plane gồm những thành phần nào? Thành phần nào chạy trên mọi node?
-Control plane bao gồm: kube-apiserver, etcd, kube-scheduler, kube-controller-manager
-Thành phần chạy trên mọi node: kubelet, kube-proxy (optional) and container runtime
+# Ngày 4 — Kiến trúc cluster (12/10/2026)
 
-Kubernetes Components
-Mỗi thành phần làm đúng một việc gì?
-kube-apiserver: Thành phần như một cánh cửa của Kubernetes API, hình dung API server như một front end của Kubernetes control plane.
-etcd: Lưu trữ dạng key-value đảm bảo tính nhất quán và sẵn sàng cao, sử dụng được lưu trữ tất cả dữ liệu của cụm.
-kube-scheduler: Thành phần theo dõi các Pod được tạo, chọn Node để Pod chạy.
-kube-controller-manager: Thành phần chạy các tiến trình controller. Bao gồm nhiều loại controllers như: Node controller, Job controller, ...
-cloud-controller-manager: Nó cho phép cụm của bạn kết nối đến API Kubbernetes của các Cloud Providers.
-kubelet: agent chạy ở mỗi node trong cluster. Nó đảm bảo containers chạy trong Pod
-kube-proxy (optional): proxy chạy ở mỗi node, triển khai 1 dịch vụ phổ biến đó là Service
-container runtime: Thành phần cơ bản giúp Kubernetes vận hành container 1 cách hiệu quả. Nó đảm nhận việc quản lý thực thi và vòng đời của container
+**Thời gian:** dự kiến 2h · thực tế _h  
+**Tự đánh giá:** _/5  
+**Kết quả:** làm đủ 7 phần trên Killercoda. Tự kiểm tra **5/8** câu (đúng 1, 2, 5, 8; đúng một nửa 3, 7; sai 4, 6).
 
-Ports and Protocols
-Mỗi thành phần lắng nghe port nào? Ai gọi tới port đó?
-kube-apiserver: 6443, được sử dụng bởi tất cả
-etcd: 2379-2380, được sử dụng bởi kube-apiserver,etcd
-kubelet: 10250, được sử dụng self, control plane
-kube-scheduler: 10259, được sử dụng self
-kube-controller-manager, được sử dụng self
-kube-proxy: 10256, self và load balencers
-NodePort Services: TCP/UDP, 30000-32767, sử dụng ALL
+## Thành phần chạy dưới dạng gì
 
-Nodes (mục Heartbeats)
-Node bị coi là NotReady sau bao lâu? Dựa vào đâu?
-5 phút sẽ cập nhật status, đối với các node khong truy cập được là 40s
-Kubelet tạo và cập nhật trạng thái Lease mỗi 10s (mặc định). Nếu Lease cập nhật fail, kubelet sẽ retry
+| Thành phần | Dạng | Ai quản lý | Ở đâu |
+| --- | --- | --- | --- |
+| kube-apiserver, etcd, kube-scheduler, kube-controller-manager | Static pod (OWNER = `Node`) | **kubelet** đọc `/etc/kubernetes/manifests` | Control plane |
+| kube-proxy, CNI (cilium, calico…) | DaemonSet | DaemonSet controller | Mọi node |
+| coredns, cilium-operator | Deployment → ReplicaSet | Deployment + ReplicaSet controller | Bất kỳ |
+| kubelet, containerd | Service systemd | systemd | Mọi node |
 
-2. 
-- kube-apiserver, etcd, scheduler, controller-manager ; Node ; Control Plane
-- cilium-envoy-7nwgk                     DaemonSet    controlplane
-    cilium-envoy-bp5gr                     DaemonSet    node01
-    cilium-h4qjm                           DaemonSet    controlplane
-    cilium-kbr55                           DaemonSet    node01
-    cilium-operator-86477b5bf8-cn7dc       ReplicaSet   controlplane
-- Chưa biết ai quản lý?
+- `k get pod` chỉ thấy **mirror pod** của static pod → `k delete` xong pod quay lại ngay. Muốn dừng thật: chuyển file manifest ra khỏi thư mục.
+- Cluster Killercoda dùng Cilium thay kube-proxy, nên không có pod kube-proxy. Lab kubeadm tuần 2 sẽ có.
 
-3. 
-a. Gửi tới port 6443 (là port của apiserver)
-b. Biết được scheduled do default-scheduler đã pulling, pulled. Scheduler chỉ ghi spec.nodeName vào pod, không tự chạy container. Kubelet đã created, Started container
-c. Chưa hiểu pod sandbox ở đâu ra? Mà container xin ra pid là 1 thì như nào
-d. Chưa hiểu chuỗi, là controller có nhiều loại, ở đây deploy controller và repl controller đã đẩy Pod sang scheduler -> Node -> kubelet -> container à
+## Luồng `k create deploy` → container chạy
 
-4. 
-Biết được mọi object trong etcd dưới dạng key. Chỉ apiserver được đọc và ghi etcd. Xem file manifest etcd để xem path của cert thay vì nhớ
+Mọi thành phần **chỉ nói chuyện với apiserver**; mỗi thành phần canh (watch) loại object mình phụ trách, làm việc, rồi ghi kết quả lại.
 
-5. 
-Chỉ thấy apiserver và kubelet listen ở mọi địa chỉ, còn lại chỉ lắng nghe localhost
+```
+k create deploy web
+   │  (1) POST Deployment
+   ▼
+┌──────────────┐  ghi/đọc  ┌──────┐
+│ kube-apiserver│◄────────►│ etcd │
+└──────────────┘           └──────┘
+   ▲  ▲  ▲  ▲
+   │  │  │  └─(5) kubelet node01: canh "pod có nodeName = node01"
+   │  │  │        → CRI: sandbox → pull → create → start → báo status
+   │  │  └────(4) scheduler: canh "pod chưa có nodeName"
+   │  │            → chọn node → ghi Binding (nodeName)
+   │  └───────(3) replicaset controller: canh ReplicaSet → tạo N Pod
+   └──────────(2) deployment controller: canh Deployment → tạo ReplicaSet
+   (2) và (3) chạy trong kube-controller-manager
+```
 
-6. 
-Nếu dừng controller-manager thì k get pod còn chạy, k create deploy sẽ không còn tạo được pod nữa vì không có tiến trình controller
-Nếu dừng scheduler thì việc Pod mới được run sẽ bị Pending vì không có ai điều phối nó cả, không ai gắn vào .specnodeName.
-Nếu dừng kebelet trên node01 thì Node01 sẽ bị Notready, node01 sẽ ko giao tiếp được với control plane và các Pod trên Node01 sẽ Pending chứ chưa chết ngay
+Kiểm chứng: `k get events --sort-by=.metadata.creationTimestamp` (SOURCE: `default-scheduler` → `kubelet`), `ownerReferences` Pod → ReplicaSet → Deployment.
 
-7. 
-Luồng từ khi ấn k create deploy. Lúc đó apiserver sẽ ghi lại như 1 object vào etcd, sau đó default-schedule sẽ thực hiện pulling, và đánh spec.nodeName cho Pod. Và kubelet sẽ thực hiện create/run container trên Pod
-Trả lời câu hỏi:
-apiserver là thành pầnn duy nhất đọc và ghi vào etcd
-Scheduler ghi spec.nodeName vào Pod
-Tôi không biết nhưng tôi đoán là controller
-Static pod tôi không biết ai quản lý
-Kubelet nói chuyện với containerd qua cri, container runtime interface
-proxy chạy dưới dạng replicaset và nó như là 1 bộ cân bằng tải cho Service
-port của apiserver: 6443, etcd (client 2379, peer 2380), kubelet: 10250, scheduler: 10259, controller-manager: không nhớ
-khi kubelet dừng, container đang chạy trên node đó ko chết
+## Thành phần chết → triệu chứng
+
+| Dừng | Triệu chứng | Bước bị đứt |
+| --- | --- | --- |
+| kube-apiserver | `kubectl` báo `connection refused` 6443; workload đang chạy vẫn chạy | Tất cả |
+| etcd | apiserver lỗi/khởi động lại liên tục | Lưu trữ |
+| controller-manager | Deployment được lưu nhưng không có RS/Pod; `k get` vẫn chạy | (2)(3) |
+| scheduler | Pod mới `Pending`, `nodeName` trống; pod cũ vẫn chạy | (4) |
+| kubelet trên 1 node | Node NotReady sau ~40s; pod vẫn hiện `Running` (trạng thái cũ), container vẫn chạy; ~5 phút sau pod bị evict, controller tạo lại ở node khác | (5) |
+
+## Heartbeat của node
+
+| Mốc | Sự kiện |
+| --- | --- |
+| Mỗi 10s | kubelet gia hạn Lease trong `kube-node-lease` |
+| ~40s không có Lease | Node → NotReady/Unknown (`--node-monitor-grace-period` của controller-manager) |
+| +300s | Pod bị evict (taint `node.kubernetes.io/unreachable`, `tolerationSeconds: 300`) |
+
+## Pod sandbox
+
+kubelet gọi CRI `RunPodSandbox` trước: tạo container `pause` giữ **network namespace** (IP của pod). Container ứng dụng gia nhập namespace đó → các container cùng pod chung IP, gọi nhau qua `localhost`.
+
+```bash
+PID=$(crictl inspect -o go-template --template '{{.info.pid}}' <container-id>)
+ps -p $PID -o pid,cmd     # PID thật trên node; trong container tiến trình này là PID 1
+```
+
+## Lỗi / hiểu sai hôm nay
+
+| # | Hiểu sai | Đúng |
+| --- | --- | --- |
+| 1 | Scheduler pull image | kubelet pull image; scheduler chỉ chọn node |
+| 2 | Controller "đẩy" Pod sang scheduler | Không ai gọi trực tiếp ai; tất cả watch apiserver |
+| 3 | Không biết ai quản lý static pod | kubelet |
+| 4 | kube-proxy chạy dạng ReplicaSet, là load balancer | DaemonSet; ghi luật iptables/IPVS/nftables cho Service |
+| 5 | Quên port controller-manager | 10257 |
+| 6 | Kubelet dừng → pod Pending | Pod vẫn hiện Running (trạng thái cũ) tới khi bị evict |
+| 7 | `crictl inspect` ra PID = 1 | Do lệnh `grep` của hướng dẫn bắt nhầm `namespaceOptions`; dùng go-template `{{.info.pid}}` |
+| 8 | Chỉ apiserver, kubelet lắng nghe mọi địa chỉ | etcd lắng nghe `127.0.0.1` **và** IP node (`--listen-client-urls`) |
+
+## Ôn lại (13/10, trước khi học)
+
+Không xem note: trả lời lại câu 3, 4, 6, 7 và vẽ lại sơ đồ 5 bước.
+
+## Ngày mai (Ngày 5 — T3 13/10)
+
+Pod & imperative: `k run ... $do`, labels/selectors, `k explain --recursive`, `-o jsonpath`, `custom-columns`, `--sort-by`.

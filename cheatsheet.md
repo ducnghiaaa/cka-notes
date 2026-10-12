@@ -1,6 +1,6 @@
 # CKA cheatsheet
 
-Cập nhật lần cuối: Ngày 3 (11/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
+Cập nhật lần cuối: Ngày 4 (12/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
 
 ## 0. Đầu giờ thi / đầu buổi lab
 
@@ -127,6 +127,29 @@ cat /etc/resolv.conf
 | Nhảy dòng N / đầu / cuối | `NG` / `gg` / `G` |
 
 ## 2. Cluster Architecture (25%)
+
+### Thành phần và luồng xử lý (Ngày 4)
+
+| Thành phần | Dạng | Ai quản lý | Port |
+| --- | --- | --- | --- |
+| kube-apiserver | Static pod | kubelet | 6443 |
+| etcd | Static pod | kubelet | 2379 client, 2380 peer |
+| kube-scheduler | Static pod | kubelet | 10259 |
+| kube-controller-manager | Static pod | kubelet | 10257 |
+| kubelet | systemd | systemd | 10250 (apiserver gọi khi `logs`/`exec`), 10248 healthz localhost |
+| kube-proxy | DaemonSet | DaemonSet controller | 10256 |
+| coredns | Deployment | Deployment controller | 53 |
+
+Luồng: `kubectl` → **apiserver** (lưu etcd) → deployment controller tạo RS → replicaset controller tạo Pod → scheduler ghi `nodeName` → kubelet gọi CRI (sandbox → pull → create → start). **Mọi thành phần chỉ nói chuyện với apiserver.**
+
+```bash
+k get pod -n kube-system -o custom-columns=NAME:.metadata.name,OWNER:.metadata.ownerReferences[0].kind,NODE:.spec.nodeName
+k get events --sort-by=.metadata.creationTimestamp      # ai làm gì, theo thứ tự
+k get lease -n kube-node-lease                           # heartbeat của node
+curl -sk https://localhost:6443/livez; curl -sk https://localhost:10259/healthz; curl -sk https://localhost:10257/healthz
+```
+
+Node NotReady sau ~40s không có heartbeat; pod bị evict sau thêm ~300s.
 
 ### Upgrade kubeadm, một minor mỗi lần (Ngày 1)
 
