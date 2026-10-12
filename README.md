@@ -1,6 +1,6 @@
 # cka-notes
 
-Ghi chú ôn thi CKA (Kubernetes v1.35), lộ trình 90 ngày: 09/10/2026 → thi 06/01/2027.
+Ghi chú ôn thi CKA (Kubernetes v1.35), lộ trình 65 ngày: 09/10/2026 → thi 12/12/2026 (từ 13/10: 4h ngày thường, 6h cuối tuần).
 
 | Thư mục / file | Dùng để |
 | --- | --- |
@@ -11,7 +11,7 @@ Ghi chú ôn thi CKA (Kubernetes v1.35), lộ trình 90 ngày: 09/10/2026 → th
 | `lab/terraform/` | Hạ tầng lab trên AWS (3 node Ubuntu 24.04) |
 | `lab/scripts/` | `lab.sh` bật/tắt lab, `node-prep.sh` chuẩn bị node cho kubeadm |
 
-Theo dõi tiến độ (trạng thái, giờ học, điểm mock, mistake log) nằm ở file Excel `CKA_Lo_trinh_90_ngay.xlsx`, không nằm trong repo.
+Theo dõi tiến độ (trạng thái, giờ học, điểm mock, mistake log) nằm ở file Excel `CKA_Lo_trinh.xlsx`, không nằm trong repo.
 
 ## Quy trình mỗi ngày
 
