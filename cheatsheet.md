@@ -1,6 +1,6 @@
 # CKA cheatsheet
 
-Cập nhật lần cuối: Ngày 4 (12/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
+Cập nhật lần cuối: Ngày 5 (13/10/2026). Mỗi mục ghi ngày học để biết mục nào cần ôn lại.
 
 ## 0. Đầu giờ thi / đầu buổi lab
 
@@ -126,6 +126,36 @@ cat /etc/resolv.conf
 | Dán không lệch | `:set paste` |
 | Nhảy dòng N / đầu / cuối | `NG` / `gg` / `G` |
 
+### Lấy dữ liệu: jsonpath / custom-columns / sort-by (Ngày 5)
+
+Mọi object là cây JSON (`k get <x> -o json`). `.a.b` đi vào trong · `[0]` phần tử đầu · `[*]` mọi phần tử.
+
+```bash
+k get pod web -o jsonpath='{.spec.containers[0].image}{"\n"}'
+k get pod -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\n"}{end}'
+k get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+k get pod -A -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName --sort-by=.metadata.creationTimestamp
+k get pod -A --sort-by='.status.containerStatuses[0].restartCount'
+```
+
+- `.items[*]` chỉ trong jsonpath khi get nhiều object; custom-columns và `--sort-by` **không** dùng `.items`.
+- Luôn nháy đơn; thêm `{"\n"}` để xuống dòng.
+- Quá 2 phút → `-o wide`, gõ tay vào file.
+
+### Tạo object nhanh + label (Ngày 5)
+
+```bash
+k run web --image=nginx --port=80 --labels=app=web,tier=fe $do > web.yaml
+k run busy --image=busybox:1.36 --restart=Never --command -- sh -c 'sleep 3600'   # --command -- = command; -- = args
+k create deploy api --image=nginx --replicas=3; k expose deploy api --port=80
+k create cm cfg --from-literal=K=V; k create secret generic s --from-literal=p=x
+k create job j --image=busybox:1.36 -- echo hi; k create cronjob c --image=busybox:1.36 --schedule="*/5 * * * *" -- date
+k label pod web env=prod [--overwrite] · k label pod web env-     # xoá
+k get pod -l 'env in (dev,stg)' · -l '!env' · -l a=b,c=d · -L app,env
+k explain pod.spec --recursive | grep -i <field>
+k config get-contexts · current-context · use-context X · set-context X --namespace=Y
+```
+
 ## 2. Cluster Architecture (25%)
 
 ### Thành phần và luồng xử lý (Ngày 4)
@@ -185,7 +215,10 @@ k uncordon <worker>
 
 ## 3. Services & Networking (20%)
 
-### Service không thông (Ngày 1)
+### Service không thông (Ngày 1, 5)
+
+Service tìm pod bằng **selector** → pod khớp + Ready → IP vào EndpointSlice. EndpointSlice rỗng = selector không khớp label.
+
 
 ```bash
 k get svc <svc> -o wide
